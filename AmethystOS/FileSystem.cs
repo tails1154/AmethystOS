@@ -22,6 +22,12 @@ namespace AmethystOS
         private int consoleCenterY = Console.WindowHeight / 2;
         private int startPrintY;
 
+        public string CurrentDirectory
+        {
+            get { return currentDirectory; }
+            private set { currentDirectory = value; }
+        }
+
         public FileSystem()
         {
             VFSManager.RegisterVFS(fileSystem);
@@ -402,7 +408,7 @@ namespace AmethystOS
                     case ConsoleKey.Escape:
                         // Call OpenFileManager when Escape key is pressed
                         Console.Clear();
-                        OpenFileManager(currentDirectory);
+                        OpenFileManager(CurrentDirectory);
                         return;
                 }
             }
@@ -590,7 +596,7 @@ namespace AmethystOS
 
                 Console.SetCursorPosition(consoleCenterX, consoleCenterY + 2);
                 Thread.Sleep(2000);
-                OpenFileManager(currentDirectory);
+                OpenFileManager(CurrentDirectory);
             }
             catch (Exception e)
             {
@@ -625,7 +631,7 @@ namespace AmethystOS
                 Thread.Sleep(1500);
 
                 Console.Clear();
-                OpenFileManager(currentDirectory);
+                OpenFileManager(CurrentDirectory);
 
             }
             catch (Exception e)

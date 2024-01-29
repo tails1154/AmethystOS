@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Sys = Cosmos.System;
+using System.Threading;
 
 namespace AmethystOS
 {
@@ -17,23 +18,30 @@ namespace AmethystOS
 
         protected override void BeforeRun()
         {
-            Console.BackgroundColor = ConsoleColor.Gray;
-            Console.ForegroundColor = ConsoleColor.Black;
+            Console.BackgroundColor = ConsoleColor.Black;
             Console.Clear();
             fileSystem = new FileSystem();
             notepad = new Notepad();
             calculator = new Calculator();
             headersAndFooters = new HeadersAndFooters();
-            Console.WriteLine("Cosmos booted successfully. Type a line of text to get it echoed back.");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write("Welcome to "); 
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.Write("Amethyst OS");
+            Thread.Sleep(1500);
+            Console.BackgroundColor = ConsoleColor.Gray;
+            Console.ForegroundColor = ConsoleColor.Black;
+            Console.Clear();
         }
 
         protected override void Run()
         {
             int selectedIndex = 0;
             string[] menuOptions = {
+            "    File Manager   ", };
+            /*
             "      Notepad      ",
-            "    File Manager   ",
-            " Simple Calculator "};
+            " Simple Calculator "}; */
 
             while (true)
             {

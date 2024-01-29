@@ -1,12 +1,16 @@
-﻿using Cosmos.System.FileSystem;
-using Cosmos.System.FileSystem.VFS;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
+using Cosmos.System.FileSystem.VFS;
+using Cosmos.System.FileSystem;
+using System.IO;
+using Cosmos.System.FileSystem.Listing;
+using System.Threading;
+using System.IO.Enumeration;
+using Cosmos.HAL.BlockDevice.Registers;
+using System.Data;
 
 namespace AmethystOS
 {
