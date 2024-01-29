@@ -14,7 +14,7 @@ namespace AmethystOS
         {
             while (true)
             {
-                Console.BackgroundColor = ConsoleColor.DarkGreen;
+                Console.BackgroundColor = ConsoleColor.DarkCyan;
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.Clear();
 
