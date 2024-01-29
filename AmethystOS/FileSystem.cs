@@ -6,6 +6,11 @@ using System.Threading.Tasks;
 using Cosmos.System.FileSystem.VFS;
 using Cosmos.System.FileSystem;
 using System.IO;
+using Cosmos.System.FileSystem.Listing;
+using System.Threading;
+using System.IO.Enumeration;
+using Cosmos.HAL.BlockDevice.Registers;
+using System.Data;
 
 namespace AmethystOS
 {
@@ -13,58 +18,420 @@ namespace AmethystOS
     {
         CosmosVFS fileSystem = new CosmosVFS();
         private string currentDirectory = "0:\\";
+        private int consoleCenterX = Console.WindowWidth / 2;
+        private int consoleCenterY = Console.WindowHeight / 2;
+        private int startPrintY;
 
-        public FileSystem() {
+        public FileSystem()
+        {
             VFSManager.RegisterVFS(fileSystem);
         }
-
-        public void PrintCurrentDirectory()
-        {
-            Console.WriteLine(currentDirectory);
-        }
-
 
         public void GetAvailableFreeSpace()
         {
             float availableFreeSpace = VFSManager.GetAvailableFreeSpace("0:\\");
-            Console.WriteLine("Available free space: " + availableFreeSpace/1000000 + "GB");
+            Console.WriteLine("Available free space: " + availableFreeSpace / 1000000 + "GB");
         }
 
         public void TotalSize()
         {
             float totalSize = VFSManager.GetTotalSize("0:\\");
-            Console.WriteLine("Total size: " + totalSize/1000000 + "GB");
+            Console.WriteLine("Total size: " + totalSize / 1000000 + "GB");
         }
-        
-        public void ListFiles()
+
+        public void OpenFileManager(string currentDirectory)
         {
             var directoryList = VFSManager.GetDirectoryListing(currentDirectory);
-            foreach (var directoryEntry in directoryList)
+
+            int selectedIndex = 0;
+
+            while (true)
             {
-                Console.WriteLine(directoryEntry.mName);
+                Console.BackgroundColor = ConsoleColor.Gray;
+                Console.Clear();
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("Press the Spacebar to enter command line");
+
+                for (int i = 0; i < directoryList.Count; i++)
+                {
+                    if (i == selectedIndex)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        Console.Write("> ");
+                        Console.ForegroundColor = ConsoleColor.DarkCyan;
+                    }
+                    else
+                    {
+                        Console.Write("  ");
+                    }
+
+                    if (directoryList[i].mEntryType == DirectoryEntryTypeEnum.Directory)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Black;
+                    }
+                    Console.WriteLine(directoryList[i].mName);
+                }
+
+                ConsoleKeyInfo key = Console.ReadKey();
+
+                switch (key.Key)
+                {
+                    case ConsoleKey.UpArrow:
+                        selectedIndex = (selectedIndex - 1 + directoryList.Count) % directoryList.Count;
+                        break;
+                    case ConsoleKey.DownArrow:
+                        selectedIndex = (selectedIndex + 1) % directoryList.Count;
+                        break;
+                    case ConsoleKey.Spacebar:
+                        HandleCommandLine(currentDirectory);
+                        break;
+                    case ConsoleKey.Enter:
+                        Console.Clear();
+                        string selectedName = directoryList[selectedIndex].mName;
+
+                        if (directoryList[selectedIndex].mEntryType == DirectoryEntryTypeEnum.Directory)
+                        {
+                            if (selectedName == "Command Line")
+                            {
+                                HandleCommandLine(currentDirectory);
+                            }
+                            else
+                            {
+                                Console.WriteLine("Directory");
+                                Console.WriteLine(currentDirectory);
+                                HandleDirectorySelection(selectedName);
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("File");
+                            HandleFileSelection(selectedName);
+                        }
+                        break;
+                }
             }
         }
 
-        public void CreateFile()
+        private void HandleCommandLine(string currentDirectory)
+        {
+            Console.BackgroundColor = ConsoleColor.Black;
+            Console.ForegroundColor = ConsoleColor.Green;
+
+            Console.Clear();
+            Console.WriteLine("Type 'help' to view a list of available commands and their uses.");
+            while (true)
+            {
+                Console.CursorVisible = true;
+                Console.Write(currentDirectory);
+                Console.Write(" > ");
+                Console.ForegroundColor = ConsoleColor.Magenta;
+
+                string userInput = Console.ReadLine();
+                string[] commandParts = userInput.Split(' ');
+
+                if (Console.KeyAvailable)
+                {
+                    ConsoleKeyInfo key = Console.ReadKey(true);
+
+                    if (key.Key == ConsoleKey.Escape)
+                    {
+                        OpenFileManager(currentDirectory);
+                        return;
+                    }
+                }
+
+                if (commandParts.Length > 0)
+                {
+                    string command = commandParts[0].ToLower();
+                    string name = string.Join(" ", commandParts.Skip(1));
+
+                    switch (command)
+                    {
+                        case "cd..":
+                            currentDirectory = Path.GetDirectoryName(currentDirectory.TrimEnd('\\'));
+                            Console.WriteLine(currentDirectory);
+                            break;
+
+                        case "cd":
+                            Console.WriteLine("cd");
+                            Console.WriteLine(currentDirectory);
+
+                            string newDirectory = Path.Combine(currentDirectory, name);
+
+                            if (Directory.Exists(newDirectory))
+                            {
+                                currentDirectory = newDirectory;
+                            }
+                            else
+                            {
+                                Console.WriteLine("Directory not found: " + name);
+                            }
+                            Console.WriteLine(currentDirectory);
+                            break;
+
+                        case "mkdir":
+                            try
+                            {
+                                Directory.CreateDirectory($@"{currentDirectory}\{name}\");
+                                Console.WriteLine($"Directory '{name}' created successfully.");
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine("Error making a new folder: " + e.ToString());
+                            }
+                            break;
+                        case "touch":
+                            Console.WriteLine("touch");
+
+                            try
+                            {
+                                name = name.Trim();
+                                if (!name.EndsWith(".txt"))
+                                {
+                                    name += ".txt";
+                                }
+
+                                VFSManager.CreateFile($@"{currentDirectory}\{name}");
+                                Console.WriteLine($"{name} created successfully.");
+
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine("Creating file error: " + e.ToString());
+                            }
+                            break;
+
+                        case "clear":
+                            Console.Clear();
+                            break;
+
+                        case "rm":
+                            Console.WriteLine("rm");
+
+                            try
+                            {
+                                string fullPath = Path.Combine(currentDirectory, name);
+
+                                if (File.Exists(fullPath))
+                                {
+                                    File.Delete($@"{currentDirectory}\{name}");
+                                    Console.WriteLine($"{name} deleted successfully.");
+                                }
+                                else if (Directory.Exists(fullPath))
+                                {
+                                    Directory.Delete($@"{currentDirectory}\{name}", true);
+                                    Console.WriteLine($"{name} directory deleted successfully.");
+                                }
+                                else
+                                {
+                                    Console.WriteLine("Item not found: " + name);
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine("Error deleting item: " + e.ToString());
+                            }
+                            break;
+
+                        case "help":
+                            Console.ForegroundColor = ConsoleColor.DarkCyan;
+                            Console.WriteLine("Available Commands:");
+                            Console.WriteLine("cd [directoryName] - Change current directory");
+                            Console.WriteLine("cd.. - Move up one directory");
+                            Console.WriteLine("mkdir [directoryName] - Create a new directory");
+                            Console.WriteLine("touch [fileName] - Create a new file");
+                            Console.WriteLine("rm [itemName] - Delete a file or directory");
+                            Console.WriteLine("clear - Clear console");
+                            Console.WriteLine("exit - Exit command line mode");
+                            Console.WriteLine("help - Display this help message");
+                            Console.ForegroundColor = ConsoleColor.Magenta;
+                            break;
+
+                        case "exit":
+                            OpenFileManager(currentDirectory);
+                            return;
+
+                        default:
+                            Console.WriteLine("Invalid command. Type 'exit' to leave command line mode or 'help' to view a list of available commands and their uses.");
+                            break;
+                    }
+                }
+            }
+        }
+
+
+
+        private void HandleDirectorySelection(string directoryName)
+        {
+            Console.WriteLine("Select an option:");
+            string[] dirOptions = {
+                "  Open folder  ",
+                " Delete folder " };
+            int dirSelectedIndex = 0;
+
+            while (true)
+            {
+                Console.BackgroundColor = ConsoleColor.Gray;
+                Console.ForegroundColor = ConsoleColor.Black;
+                Console.Clear();
+
+                startPrintY = consoleCenterY - (dirOptions.Length / 2);
+                for (int i = 0; i < dirOptions.Length; i++)
+                {
+                    Console.BackgroundColor = ConsoleColor.Gray;
+                    Console.ForegroundColor = ConsoleColor.Black;
+                    if (i == dirSelectedIndex)
+                    {
+                        Console.BackgroundColor = ConsoleColor.DarkCyan;
+                        Console.ForegroundColor = ConsoleColor.White;
+                    }
+
+                    int dirOptionCenterX = consoleCenterX - (dirOptions[i].Length / 2);
+
+                    Console.SetCursorPosition(dirOptionCenterX, startPrintY + i);
+                    Console.WriteLine(dirOptions[i]);
+                }
+
+                ConsoleKeyInfo key = Console.ReadKey();
+
+                switch (key.Key)
+                {
+                    case ConsoleKey.UpArrow:
+                        dirSelectedIndex = (dirSelectedIndex - 1 + dirOptions.Length) % dirOptions.Length;
+                        break;
+                    case ConsoleKey.DownArrow:
+                        dirSelectedIndex = (dirSelectedIndex + 1) % dirOptions.Length;
+                        break;
+                    case ConsoleKey.Enter:
+                        Console.Clear();
+                        switch (dirOptions[dirSelectedIndex].Trim())
+                        {
+                            case "Open folder":
+                                Console.Clear();
+                                currentDirectory = ($@"{currentDirectory}\{directoryName}");
+                                OpenFileManager(currentDirectory);
+                                break;
+                            case "Delete folder":
+                                DeleteDirectory(directoryName);
+                                break;
+                            default:
+                                Console.WriteLine("Invalid option selected.");
+                                break;
+                        }
+                        Console.WriteLine("Press any key to return to the menu...");
+                        while (Console.ReadKey().Key != ConsoleKey.Escape) { }
+                        break;
+                }
+            }
+        }
+
+
+        private void HandleFileSelection(string fileName)
+        {
+            string[] fileOptions = {
+            "     Open     ",
+            "     Edit     ",
+            "    Delete    " ,
+            "     Back     "};
+            int fileSelectedIndex = 0;
+
+            startPrintY = consoleCenterY - (fileOptions.Length / 2);
+
+            while (true)
+            {
+                Console.BackgroundColor = ConsoleColor.Gray;
+                Console.ForegroundColor = ConsoleColor.Black;
+                Console.Clear();
+
+                for (int i = 0; i < fileOptions.Length; i++)
+                {
+                    Console.BackgroundColor = ConsoleColor.Gray;
+                    Console.ForegroundColor = ConsoleColor.Black;
+
+                    if (i == fileSelectedIndex)
+                    {
+                        Console.BackgroundColor = ConsoleColor.DarkCyan;
+                        Console.ForegroundColor = ConsoleColor.White;
+                    }
+
+                    int fileOptionsCenterX = consoleCenterX - (fileOptions[i].Length / 2);
+                    Console.SetCursorPosition(fileOptionsCenterX, startPrintY + i);
+                    Console.WriteLine(fileOptions[i]);
+                }
+
+                ConsoleKeyInfo fileKey = Console.ReadKey();
+
+                switch (fileKey.Key)
+                {
+                    case ConsoleKey.UpArrow:
+                        fileSelectedIndex = (fileSelectedIndex - 1 + fileOptions.Length) % fileOptions.Length;
+                        break;
+                    case ConsoleKey.DownArrow:
+                        fileSelectedIndex = (fileSelectedIndex + 1) % fileOptions.Length;
+                        break;
+                    case ConsoleKey.Enter:
+                        Console.Clear();
+                        switch (fileOptions[fileSelectedIndex].Trim())
+                        {
+                            case "Open":
+                                ReadFile(fileName);
+                                break;
+                            case "Edit":
+                                EditFile(fileName);
+                                break;
+                            case "Delete":
+                                DeleteFile(fileName);
+                                break;
+                            case "Back":
+                                OpenFileManager(currentDirectory);
+                                break;
+                            default:
+                                Console.WriteLine("Invalid option selected.");
+                                break;
+                        }
+
+                        // Print message at the bottom
+                        Console.SetCursorPosition(0, Console.WindowHeight - 1);
+                        Console.WriteLine("Press escape key to return to the menu...");
+                        while (Console.ReadKey().Key != ConsoleKey.Escape) { }
+                        break;
+                    case ConsoleKey.Escape:
+                        // Call OpenFileManager when Escape key is pressed
+                        Console.Clear();
+                        OpenFileManager(currentDirectory);
+                        return;
+                }
+            }
+        }
+
+
+        public void CreateFile(string fileName)
         {
             try
             {
-                Console.Write("File name: ");
-                var fileName = Console.ReadLine().Trim();
+                fileName = fileName.Trim();
+                if (!fileName.EndsWith(".txt"))
+                {
+                    fileName += ".txt";
+                }
+
                 VFSManager.CreateFile($@"{currentDirectory}\{fileName}");
             }
             catch (Exception e)
             {
-                Console.WriteLine("creating file error: " + e.ToString());
+                Console.WriteLine("Creating file error: " + e.ToString());
             }
         }
 
-        public void ReadFile()
+
+        public void ReadFile(string fileName)
         {
             try
             {
-                Console.Write("Type the file name you want to open: ");
-                var fileName = Console.ReadLine().Trim();
                 var getFile = VFSManager.GetFile($@"{currentDirectory}\{fileName}");
                 var fileStream = getFile.GetFileStream();
 
@@ -78,16 +445,14 @@ namespace AmethystOS
             }
             catch (Exception e)
             {
-                Console.WriteLine("reading selected file error: " + e.ToString());
+                Console.WriteLine("error reading selected file: " + e.ToString());
             }
         }
 
-        public void EditFile()
+        public void EditFile(string fileName)
         {
             try
             {
-                Console.Write("Type the file name you want to edit: ");
-                var fileName = Console.ReadLine().Trim();
                 var getFile = VFSManager.GetFile($@"{currentDirectory}\{fileName}");
                 var fileStream = getFile.GetFileStream();
 
@@ -123,11 +488,15 @@ namespace AmethystOS
 
         public static class EditableConsole
         {
+
             public static string ReadLine(byte[] initialContent)
             {
+                Console.BackgroundColor = ConsoleColor.DarkCyan;
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.Clear();
+
                 var editableText = new EditableText(initialContent);
                 ConsoleKeyInfo key;
-
                 Console.Write(editableText.GetText());  // Display initial content
 
                 do
@@ -149,7 +518,7 @@ namespace AmethystOS
                     }
 
                     Console.SetCursorPosition(0, Console.CursorTop);
-                    Console.Write(new string(' ', Console.WindowWidth - 1));  // Clear the line
+                    Console.Write(new string(' ', Console.WindowWidth - 1));
                     Console.SetCursorPosition(0, Console.CursorTop);
                     Console.Write(editableText.GetText());  // Rewrite the updated text
 
@@ -159,7 +528,6 @@ namespace AmethystOS
                 return editableText.GetText();
             }
         }
-
 
         public class EditableText
         {
@@ -189,7 +557,7 @@ namespace AmethystOS
             }
         }
 
-        public void createNewDirectory()
+        public void CreateNewDirectory()
         {
             try
             {
@@ -203,35 +571,69 @@ namespace AmethystOS
             }
         }
 
-        public void DeleteFile()
+        public void DeleteFile(string fileName)
         {
             try
             {
-                Console.Write("Enter the name of the file you want to delete: ");
-                var fileName = Console.ReadLine().Trim();
                 File.Delete($@"{currentDirectory}\{fileName}");
-                Console.Write($"{fileName} deleted");
+                Console.Clear();
+                int consoleCenterX = Console.WindowWidth / 2;
+                int consoleCenterY = Console.WindowHeight / 2;
+
+                string message = $"{fileName} file deleted";
+                int messageCenterX = consoleCenterX - (message.Length / 2);
+                int startPrintY = consoleCenterY;
+
+                Console.SetCursorPosition(messageCenterX, startPrintY);
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.Write(message);
+
+                Console.SetCursorPosition(consoleCenterX, consoleCenterY + 2);
+                Thread.Sleep(2000);
+                OpenFileManager(currentDirectory);
             }
             catch (Exception e)
             {
-                Console.WriteLine("Error deleting file: " + e.ToString());  
+                Console.WriteLine("Error deleting file: " + e.ToString());
             }
         }
 
-        public void DeleteDirectory()
+
+        public void DeleteDirectory(string dirName)
         {
             try
             {
-                Console.Write("Enter the name of the folder you want to delete: ");
-                var dirName = Console.ReadLine().Trim();
+                Console.Clear();
                 Directory.Delete($@"{currentDirectory}\{dirName}", true);
-                Console.Write($"{dirName} deleted");
+
+                string message = $"{dirName} folder deleted";
+                int consoleCenterX = Console.WindowWidth / 2;
+                int consoleCenterY = Console.WindowHeight / 2;
+
+                int messageCenterX = consoleCenterX - (message.Length / 2);
+                int startPrintY = consoleCenterY;
+
+                Console.SetCursorPosition(messageCenterX, startPrintY);
+
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine(message);
+                Console.WriteLine(currentDirectory);
+                
+
+                currentDirectory = Path.GetDirectoryName(currentDirectory.TrimEnd('\\'));
+                Console.WriteLine(currentDirectory);
+                Thread.Sleep(1500);
+
+                Console.Clear();
+                OpenFileManager(currentDirectory);
+
             }
             catch (Exception e)
             {
                 Console.WriteLine("Error deleting directory: " + e.ToString());
             }
         }
+
 
         public void ChangeDirectory()
         {
@@ -240,7 +642,6 @@ namespace AmethystOS
                 Console.Write(currentDirectory + " ");
                 var input = Console.ReadLine().Trim();
 
-                // Handle special case for moving up one directory
                 if (input == "cd..")
                 {
                     // Move up one directory (parent directory)

@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using Sys = Cosmos.System;
 
 namespace AmethystOS
@@ -10,35 +12,56 @@ namespace AmethystOS
     {
         private FileSystem fileSystem;
         private Notepad notepad;
+        private Calculator calculator;
+        private HeadersAndFooters headersAndFooters;
+
         protected override void BeforeRun()
         {
+            Console.BackgroundColor = ConsoleColor.Gray;
+            Console.ForegroundColor = ConsoleColor.Black;
             Console.Clear();
             fileSystem = new FileSystem();
             notepad = new Notepad();
+            calculator = new Calculator();
+            headersAndFooters = new HeadersAndFooters();
             Console.WriteLine("Cosmos booted successfully. Type a line of text to get it echoed back.");
         }
 
         protected override void Run()
         {
             int selectedIndex = 0;
-            string[] menuOptions = { "File Manager", "Notepad" };
+            string[] menuOptions = {
+            "      Notepad      ",
+            "    File Manager   ",
+            " Simple Calculator "};
 
             while (true)
             {
+                Console.BackgroundColor = ConsoleColor.Gray;
+                Console.ForegroundColor = ConsoleColor.Black;
                 Console.Clear();
-                Console.WriteLine("Select an option:");
+                Console.CursorVisible = false;
+
+                int consoleCenterX = Console.WindowWidth / 2;
+                int consoleCenterY = Console.WindowHeight / 2;
+
+                int startPrintY = consoleCenterY - (menuOptions.Length / 2);
 
                 for (int i = 0; i < menuOptions.Length; i++)
                 {
+                    Console.BackgroundColor = ConsoleColor.Gray;
+                    Console.ForegroundColor = ConsoleColor.Black;
+
                     if (i == selectedIndex)
                     {
                         Console.BackgroundColor = ConsoleColor.DarkCyan;
-                        Console.ForegroundColor = ConsoleColor.Black;
+                        Console.ForegroundColor = ConsoleColor.White;
                     }
 
-                    Console.WriteLine(menuOptions[i]);
+                    int menuOptionCenterX = consoleCenterX - (menuOptions[i].Length / 2);
 
-                    Console.ResetColor();
+                    Console.SetCursorPosition(menuOptionCenterX, startPrintY + i);
+                    Console.WriteLine(menuOptions[i]);
                 }
 
                 ConsoleKeyInfo key = Console.ReadKey();
@@ -53,25 +76,26 @@ namespace AmethystOS
                         break;
                     case ConsoleKey.Enter:
                         Console.Clear();
-                        switch (menuOptions[selectedIndex].ToLower())
+                        switch (menuOptions[selectedIndex].Trim().ToLower())
                         {
                             case "file manager":
-                                fileSystem.ListFiles();
+                                fileSystem.OpenFileManager("0:\\");
                                 break;
                             case "notepad":
-                                notepad.openNotepad();
+                                notepad.OpenNotepad();
+                                break;
+                            case "calculator":
+                                Console.CursorVisible = true;
+                                calculator.OpenCalculator();
                                 break;
                             default:
                                 Console.WriteLine("Invalid option selected.");
                                 break;
                         }
-                        Console.WriteLine("Press any key to return to the menu...");
-                        Console.ReadKey();
+                        headersAndFooters.EscapeFooterMessage();
                         break;
                 }
             }
         }
-
     }
-
 }
